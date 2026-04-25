@@ -1,37 +1,5 @@
-import { NextFetchEvent, NextRequest, NextResponse } from "next/server";
-
-import AppMiddleware from "@/lib/middleware/app";
-import DomainMiddleware from "@/lib/middleware/domain";
-
-import { BLOCKED_PATHNAMES } from "./lib/constants";
-import IncomingWebhookMiddleware, {
-  isWebhookPath,
-} from "./lib/middleware/incoming-webhooks";
-import PostHogMiddleware from "./lib/middleware/posthog";
-
-function isAnalyticsPath(path: string) {
-  // Create a regular expression
-  // ^ - asserts position at start of the line
-  // /ingest/ - matches the literal string "/ingest/"
-  // .* - matches any character (except for line terminators) 0 or more times
-  const pattern = /^\/ingest\/.*/;
-
-  return pattern.test(path);
-}
-
-function isCustomDomain(host: string) {
-  return (
-    (process.env.NODE_ENV === "development" &&
-      (host?.includes(".local") || host?.includes("papermark.dev"))) ||
-    (process.env.NODE_ENV !== "development" &&
-      !(
-        host?.includes("localhost") ||
-        host?.includes("papermark.io") ||
-        host?.includes("papermark.com") ||
-        host?.endsWith(".vercel.app")
-      ))
-  );
-}
+import { NextRequest, NextResponse } from "next/server";
+import { getToken } from "next-auth/jwt";
 
 export const config = {
   matcher: [
@@ -41,50 +9,36 @@ export const config = {
      * 2. /_next/ (Next.js internals)
      * 3. /_static (inside /public)
      * 4. /_vercel (Vercel internals)
-     * 5. /favicon.ico, /sitemap.xml, /robots.txt (static files)
+     * 5. static files (favicon.ico, etc.)
      */
-    "/((?!api/|_next/|_static|vendor|_icons|_vercel|favicon.ico|sitemap.xml|robots.txt).*)",
+    "/((?!api/|_next/|_static|_vercel|[\\w-]+\\.\\w+).*)",
   ],
 };
 
-export default async function middleware(req: NextRequest, ev: NextFetchEvent) {
+export default async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
-  const host = req.headers.get("host");
 
-  if (isAnalyticsPath(path)) {
-    return PostHogMiddleware(req);
-  }
-
-  // Handle incoming webhooks
-  if (isWebhookPath(host)) {
-    return IncomingWebhookMiddleware(req);
-  }
-
-  // For custom domains, we need to handle them differently
-  if (isCustomDomain(host || "")) {
-    return DomainMiddleware(req);
-  }
-
-  // Handle standard papermark.com paths
+  // 1. PUBLIC PATHS: Let investors see these without logging in
   if (
-    !path.startsWith("/view/") &&
-    !path.startsWith("/verify") &&
-    !path.startsWith("/unsubscribe") &&
-    !path.startsWith("/notification-preferences") &&
-    !path.startsWith("/auth/email")
+    path.startsWith("/view") || 
+    path.startsWith("/verify") || 
+    path.startsWith("/unsubscribe") ||
+    path.startsWith("/login") ||
+    path.startsWith("/register")
   ) {
-    return AppMiddleware(req);
+    return NextResponse.next();
   }
 
-  // Check for blocked pathnames in view routes
-  if (
-    path.startsWith("/view/") &&
-    (BLOCKED_PATHNAMES.some((blockedPath) => path.includes(blockedPath)) ||
-      path.includes("."))
-  ) {
-    const url = req.nextUrl.clone();
-    url.pathname = "/404";
-    return NextResponse.rewrite(url, { status: 404 });
+  // 2. AUTH CHECK: Check if the user is logged in
+  const session = await getToken({
+    req,
+    secret: process.env.NEXTAUTH_SECRET,
+  });
+
+  // 3. PROTECTED PATHS: If not logged in, send to login page
+  if (!session && (path === "/" || path.startsWith("/dashboard") || path.startsWith("/settings"))) {
+    const url = new URL("/login", req.url);
+    return NextResponse.redirect(url);
   }
 
   return NextResponse.next();
