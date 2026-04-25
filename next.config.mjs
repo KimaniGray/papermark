@@ -22,7 +22,8 @@ const nextConfig = {
         has: [
           {
             type: "host",
-            value: process.env.NEXT_PUBLIC_APP_BASE_HOST,
+            // FIX: Added a fallback so it doesn't crash if the variable is missing
+            value: process.env.NEXT_PUBLIC_APP_BASE_HOST || "(?<host>.*)",
           },
         ],
       },
@@ -127,7 +128,8 @@ const nextConfig = {
         has: [
           {
             type: "host",
-            value: process.env.NEXT_PUBLIC_WEBHOOK_BASE_HOST,
+            // FIX: Added a fallback here as well to satisfy the Vercel build
+            value: process.env.NEXT_PUBLIC_WEBHOOK_BASE_HOST || "(?<host>.*)",
           },
         ],
         headers: [
