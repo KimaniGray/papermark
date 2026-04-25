@@ -4,18 +4,19 @@ import type { NextRequest } from "next/server";
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 1. PUBLIC PATHS: Let investors see the Tsavo Resilience Fund 1 Pitch
+  // 1. PUBLIC PATHS: Allow access to the Tsavo Resilience Fund 1 pitch
+  // and vital Next.js system files.
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api") ||
     pathname.startsWith("/static") ||
-    pathname.startsWith("/tsavo-pitch") || // Update your page name here if needed
+    pathname.startsWith("/tsavo-pitch") || // Replace with your actual pitch slug
     pathname === "/favicon.ico"
   ) {
     return NextResponse.next();
   }
 
-  // 2. EDGE-SAFE ROUTING: No __dirname allowed.
+  // 2. FORCED BYPASS: Temporarily let everything through to stop the 500 error
   return NextResponse.next();
 }
 
