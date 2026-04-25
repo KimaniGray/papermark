@@ -4,18 +4,17 @@ import type { NextRequest } from "next/server";
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 1. ALLOW PUBLIC ACCESS: Explicitly let investors see the NSSF Storyboard
+  // This opens the door for your NSSF Storyboard and internal Next.js files
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api") ||
     pathname.startsWith("/static") ||
-    pathname.startsWith("/nssf-pitch") || // This allows your custom pitch page
+    pathname.startsWith("/nssf-pitch") || 
     pathname === "/favicon.ico"
   ) {
     return NextResponse.next();
   }
 
-  // 2. STANDARD ROUTING: No __dirname or Node.js-only modules allowed here
   return NextResponse.next();
 }
 
