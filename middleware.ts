@@ -1,37 +1,26 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getToken } from "next-auth/jwt";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
-export const config = {
-  matcher: [
-    "/((?!api/|_next/|_static|_vercel|[\\w-]+\\.\\w+).*)",
-  ],
-};
+export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
 
-export default async function middleware(req: NextRequest) {
-  const path = req.nextUrl.pathname;
-
-  // 1. PUBLIC PATHS: Let investors see these without logging in
+  // 1. ALLOW PUBLIC ACCESS: This lets the investor see your pitch page
   if (
-    path.startsWith("/view") || 
-    path.startsWith("/verify") || 
-    path.startsWith("/unsubscribe") ||
-    path.startsWith("/login") ||
-    path.startsWith("/register")
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/api") ||
+    pathname.startsWith("/static") ||
+    pathname.startsWith("/nssf-pitch") || // Your custom story page
+    pathname === "/favicon.ico"
   ) {
     return NextResponse.next();
   }
 
-  // 2. AUTH CHECK: Check if the user is logged in
-  const session = await getToken({
-    req,
-    secret: process.env.NEXTAUTH_SECRET,
-  });
-
-  // 3. PROTECTED PATHS: If not logged in, send to login page
-  if (!session && (path === "/" || path.startsWith("/dashboard") || path.startsWith("/settings"))) {
-    const url = new URL("/login", req.url);
-    return NextResponse.redirect(url);
-  }
-
+  // 2. EDGE-SAFE LOGIC: Standard routing only.
   return NextResponse.next();
 }
+
+export const config = {
+  matcher: [
+    "/((?!api|_next/static|_next/image|favicon.ico).*)",
+  ],
+};
