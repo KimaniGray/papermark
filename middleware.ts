@@ -3,14 +3,6 @@ import { getToken } from "next-auth/jwt";
 
 export const config = {
   matcher: [
-    /*
-     * Match all paths except for:
-     * 1. /api/ routes
-     * 2. /_next/ (Next.js internals)
-     * 3. /_static (inside /public)
-     * 4. /_vercel (Vercel internals)
-     * 5. static files (favicon.ico, etc.)
-     */
     "/((?!api/|_next/|_static|_vercel|[\\w-]+\\.\\w+).*)",
   ],
 };
