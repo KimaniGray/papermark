@@ -4,17 +4,18 @@ import type { NextRequest } from "next/server";
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // This opens the door for your NSSF Storyboard and internal Next.js files
+  // 1. PUBLIC PATHS: Let investors see the Tsavo Resilience Fund 1 Pitch
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api") ||
     pathname.startsWith("/static") ||
-    pathname.startsWith("/nssf-pitch") || 
+    pathname.startsWith("/tsavo-pitch") || // Update your page name here if needed
     pathname === "/favicon.ico"
   ) {
     return NextResponse.next();
   }
 
+  // 2. EDGE-SAFE ROUTING: No __dirname allowed.
   return NextResponse.next();
 }
 
