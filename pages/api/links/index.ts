@@ -26,6 +26,32 @@ export interface DomainObject {
   slug: string;
 }
 
+/**
+ * Normalize the list of allowed upload folder ids from the incoming payload,
+ * deduplicating and dropping falsy entries. An empty array represents
+ * "visitor may upload anywhere". An omitted/undefined property is treated as
+ * an empty array; any other non-array shape is rejected so the caller can
+ * surface a 400 instead of silently dropping malformed input.
+ */
+function normalizeUploadFolderIds(linkData: {
+  uploadFolderIds?: unknown;
+}): string[] {
+  if (
+    !Object.prototype.hasOwnProperty.call(linkData, "uploadFolderIds") ||
+    linkData.uploadFolderIds === undefined
+  ) {
+    return [];
+  }
+  if (!Array.isArray(linkData.uploadFolderIds)) {
+    throw new TypeError("uploadFolderIds must be an array.");
+  }
+  const ids: string[] = [];
+  for (const id of linkData.uploadFolderIds) {
+    if (typeof id === "string" && id.length > 0) ids.push(id);
+  }
+  return Array.from(new Set(ids));
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -192,6 +218,55 @@ export default async function handler(
         }
       }
 
+      // Validate upload folder IDs belong to the target dataroom. Without this
+      // check, a tampered payload could persist arbitrary folder cuids
+      // (including ones from other datarooms/teams) into the link.
+      let validatedUploadFolderIds: string[] = [];
+      let validatedUploadFolders: { id: string; name: string; path: string }[] =
+        [];
+      if (linkData.enableUpload) {
+        let normalizedIds: string[];
+        try {
+          normalizedIds = normalizeUploadFolderIds(linkData);
+        } catch (err) {
+          if (err instanceof TypeError) {
+            return res.status(400).json({ error: err.message });
+          }
+          throw err;
+        }
+
+        if (normalizedIds.length > 0) {
+          if (!dataroomLink || !targetId) {
+            return res.status(400).json({
+              error: "Upload folders can only be assigned to dataroom links.",
+            });
+          }
+
+          const validFolders = await prisma.dataroomFolder.findMany({
+            where: {
+              id: { in: normalizedIds },
+              dataroomId: targetId,
+            },
+            select: { id: true, name: true, path: true },
+          });
+          const byId = new Map(validFolders.map((f) => [f.id, f]));
+
+          if (byId.size !== normalizedIds.length) {
+            return res.status(400).json({
+              error:
+                "One or more upload folders do not belong to this data room.",
+            });
+          }
+
+          validatedUploadFolderIds = normalizedIds.filter((id) => byId.has(id));
+          validatedUploadFolders = validatedUploadFolderIds
+            .map((id) => byId.get(id))
+            .filter(
+              (f): f is { id: string; name: string; path: string } => !!f,
+            );
+        }
+      }
+
       // Fetch the link and its related document from the database
       const updatedLink = await prisma.$transaction(async (tx) => {
         const link = await tx.link.create({
@@ -252,7 +327,7 @@ export default async function handler(
             ...(linkData.enableUpload && {
               enableUpload: linkData.enableUpload,
               isFileRequestOnly: linkData.isFileRequestOnly,
-              uploadFolderId: linkData.uploadFolderId,
+              uploadFolderIds: validatedUploadFolderIds,
             }),
             enableAIAgents: linkData.enableAIAgents || false,
             enableConversation: linkData.enableConversation || false,
@@ -329,6 +404,9 @@ export default async function handler(
 
       const linkWithView = {
         ...updatedLink,
+        // Echo the resolved folder allow-list so the client can render chips
+        // with the correct folder names without an extra round-trip.
+        uploadFolders: validatedUploadFolders,
         _count: { views: 0 },
         views: [],
       };
