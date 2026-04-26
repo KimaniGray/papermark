@@ -22,7 +22,6 @@ const nextConfig = {
         has: [
           {
             type: "host",
-            // FIX: Added a fallback so it doesn't crash if the variable is missing
             value: process.env.NEXT_PUBLIC_APP_BASE_HOST || "(?<host>.*)",
           },
         ],
@@ -39,7 +38,6 @@ const nextConfig = {
 
     return [
       {
-        // Default headers for all routes
         source: "/:path*",
         headers: [
           {
@@ -71,7 +69,7 @@ const nextConfig = {
               `img-src 'self' data: blob: https: ${isDev ? "http:" : ""}; ` +
               `font-src 'self' data: https: ${isDev ? "http:" : ""}; ` +
               `frame-ancestors 'none'; ` +
-              `connect-src 'self' https: ${isDev ? "http: ws: wss:" : ""}; ` + // Add WebSocket for hot reload
+              `connect-src 'self' https: ${isDev ? "http: ws: wss:" : ""}; ` + 
               `${isDev ? "" : "upgrade-insecure-requests;"} ` +
               "report-to csp-endpoint;",
           },
@@ -102,7 +100,6 @@ const nextConfig = {
         ],
       },
       {
-        // Embed routes - allow iframe embedding
         source: "/view/:path*/embed",
         headers: [
           {
@@ -113,8 +110,8 @@ const nextConfig = {
               `style-src 'self' 'unsafe-inline' https: ${isDev ? "http:" : ""}; ` +
               `img-src 'self' data: blob: https: ${isDev ? "http:" : ""}; ` +
               `font-src 'self' data: https: ${isDev ? "http:" : ""}; ` +
-              "frame-ancestors *; " + // This allows iframe embedding
-              `connect-src 'self' https: ${isDev ? "http: ws: wss:" : ""}; ` + // Add WebSocket for hot reload
+              "frame-ancestors *; " + 
+              `connect-src 'self' https: ${isDev ? "http: ws: wss:" : ""}; ` + 
               `${isDev ? "" : "upgrade-insecure-requests;"}`,
           },
           {
@@ -128,7 +125,6 @@ const nextConfig = {
         has: [
           {
             type: "host",
-            // FIX: Added a fallback here as well to satisfy the Vercel build
             value: process.env.NEXT_PUBLIC_WEBHOOK_BASE_HOST || "(?<host>.*)",
           },
         ],
@@ -162,7 +158,6 @@ const nextConfig = {
   experimental: {
     outputFileTracingIncludes: {
       "/api/mupdf/*": ["./node_modules/mupdf/dist/*.wasm"],
-      // Jackson SAML routes need jose + openid-client for crypto
       "/api/auth/saml/token": [
         "./node_modules/jose/**/*",
         "./node_modules/openid-client/**/*",
@@ -173,16 +168,14 @@ const nextConfig = {
       ],
     },
     missingSuspenseWithCSRBailout: false,
+    // THE SURGERY: Force Next.js to ignore these incompatible Node packages on the Edge
+    serverComponentsExternalPackages: ['@trigger.dev/core', '@trigger.dev/sdk', 'require-in-the-middle'],
   },
   webpack: (config) => {
-    // Stub out @google-cloud/kms - it's an optional dependency of @libpdf/core
-    // that we don't use (only needed for KMS-based PDF encryption)
     config.resolve.alias = {
       ...config.resolve.alias,
       "@google-cloud/kms": false,
       "@google-cloud/secret-manager": false,
-      // Jackson pulls TypeORM/Mongo optional drivers we don't use (Postgres-only setup).
-      // Aliasing prevents module resolution errors in dev/build.
       mongodb: false,
       mysql: false,
       "react-native-sqlite-storage": false,
@@ -192,7 +185,6 @@ const nextConfig = {
       "hdb-pool": false,
     };
 
-    // Suppress critical dependency warnings from Jackson's dynamic requires
     config.module = {
       ...config.module,
       exprContextCritical: false,
@@ -204,30 +196,21 @@ const nextConfig = {
 
 function prepareRemotePatterns() {
   let patterns = [
-    // static images and videos
     { protocol: "https", hostname: "assets.papermark.io" },
     { protocol: "https", hostname: "cdn.papermarkassets.com" },
     { protocol: "https", hostname: "d2kgph70pw5d9n.cloudfront.net" },
-    // twitter img
     { protocol: "https", hostname: "pbs.twimg.com" },
-    // linkedin img
     { protocol: "https", hostname: "media.licdn.com" },
-    // google img
     { protocol: "https", hostname: "lh3.googleusercontent.com" },
-    // papermark img
     { protocol: "https", hostname: "www.papermark.io" },
     { protocol: "https", hostname: "app.papermark.io" },
     { protocol: "https", hostname: "www.papermark.com" },
     { protocol: "https", hostname: "app.papermark.com" },
-    // useragent img
     { protocol: "https", hostname: "faisalman.github.io" },
-    // special document pages
     { protocol: "https", hostname: "d36r2enbzam0iu.cloudfront.net" },
-    // us special storage
     { protocol: "https", hostname: "d35vw2hoyyl88.cloudfront.net" },
   ];
 
-  // Default region patterns
   if (process.env.NEXT_PRIVATE_UPLOAD_DISTRIBUTION_HOST) {
     patterns.push({
       protocol: "https",
@@ -242,7 +225,6 @@ function prepareRemotePatterns() {
     });
   }
 
-  // US region patterns
   if (process.env.NEXT_PRIVATE_UPLOAD_DISTRIBUTION_HOST_US) {
     patterns.push({
       protocol: "https",
@@ -259,7 +241,6 @@ function prepareRemotePatterns() {
 
   if (process.env.VERCEL_ENV === "production") {
     patterns.push({
-      // production vercel blob
       protocol: "https",
       hostname: "yoywvlh29jppecbh.public.blob.vercel-storage.com",
     });
@@ -270,7 +251,6 @@ function prepareRemotePatterns() {
     process.env.NODE_ENV === "development"
   ) {
     patterns.push({
-      // staging vercel blob
       protocol: "https",
       hostname: "36so9a8uzykxknsu.public.blob.vercel-storage.com",
     });
